@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>水下照片物理恢复工具</title>
+    <style>
+      :root {
+        --bg: #0e1722;
+        --panel: #16233;
+        --panel: #162333;
+        --line: #24374f;
+        --text: #e6edf5;
+        --muted: #8aa2bd;
+        --accent: #38bdf8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+      }
+      header h1 { font-size: 18px; margin: 0; }
+      header p { margin: 0; color: var(--muted); font-size: 13px; }
+      main { display: flex; flex: 1; min-height: 0; }
+      .controls {
+        width: 280px;
+        padding: 18px;
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        overflow-y: auto;
+      }
+      .controls label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+      .controls select, .controls input {
+        width: 100%;
+        padding: 7px 9px;
+        background: #0c1622;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--text);
+        font-size: 13px;
+      }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      button {
+        padding: 10px 12px;
+        border: none;
+        border-radius: 6px;
+        background: var(--accent);
+        color: #04222f;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      button.secondary { background: #24405c; color: var(--text); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .stage {
+        flex: 1;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+      }
+      .canvas-wrap {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        min-height: 0;
+      }
+      .pane {
+        background: #0a131d;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .pane h3 {
+        margin: 0;
+        padding: 9px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        border-bottom: 1px solid var(--line);
+        font-weight: 600;
+      }
+      .pane canvas { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+      .status { font-size: 12px; color: var(--muted); min-height: 18px; }
+      .metric { font-size: 12px; color: var(--accent); }
+      .toggle { display: flex; align-items: center; gap: 8px; }
+      .toggle input { width: auto; }
+      .toggle label { margin: 0; }
+      .hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>水下照片物理恢复</h1>
+      <p>Jaffe–McGlamery 衰减/后向散射分离 · 闪光灯/环境光双路径 · WebGL2 加速</p>
+    </header>
+    <main>
+      <section class="controls">
+        <div>
+          <label>水体类型 (Jerlov)</label>
+          <select id="waterType">
+            <option value="I">I — 开阔清水</option>
+            <option value="IA">IA</option>
+            <option value="IB" selected>IB — 典型开放海域</option>
+            <option value="II">II</option>
+            <option value="III">III — 较浑浊</option>
+            <option value="1C">1C — 近岸</option>
+            <option value="3C">3C</option>
+            <option value="5C">5C</option>
+            <option value="7C">7C</option>
+            <option value="9C">9C — 高浑浊近岸</option>
+          </select>
+        </div>
+        <div>
+          <label>相机水深: <span id="depthLabel">10</span> m</label>
+          <input type="range" id="depth" min="2" max="30" step="1" value="10" />
+        </div>
+        <div>
+          <label>闪光灯功率: <span id="strobeLabel">1.0</span></label>
+          <input type="range" id="strobe" min="0" max="2" step="0.05" value="1" />
+        </div>
+        <div class="row">
+          <div>
+            <label>场景宽度</label>
+            <input type="number" id="width" value="640" min="64" max="1600" step="64" />
+          </div>
+          <div>
+            <label>场景高度</label>
+            <input type="number" id="height" value="480" min="64" max="1200" step="64" />
+          </div>
+        </div>
+        <div class="toggle">
+          <input type="checkbox" id="skin" checked />
+          <label for="skin">肤色色域约束（只动人脸，不碰珊瑚）</label>
+        </div>
+        <div class="toggle">
+          <input type="checkbox" id="blind" />
+          <label for="blind">盲估计模式（DCP 估距离，无需测距）</label>
+        </div>
+        <button id="run">生成并恢复</button>
+        <button id="download" class="secondary" disabled>下载恢复结果 (PNG)</button>
+        <p class="hint">
+          左侧为按真实水体衰减模型从陆地场景合成的水下照片，右侧为物理恢复结果。
+          调深水深时观察红色通道如何按距离衰减、闪光灯锥内/锥外的不同路径处理。
+        </p>
+      </section>
+      <section class="stage">
+        <div class="canvas-wrap">
+          <div class="pane">
+            <h3>合成水下照片（输入）</h3>
+            <canvas id="underwaterCanvas"></canvas>
+          </div>
+          <div class="pane">
+            <h3>物理恢复（输出）</h3>
+            <canvas id="restoredCanvas"></canvas>
+          </div>
+        </div>
+        <div class="status" id="status">就绪。点击「生成并恢复」。</div>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
